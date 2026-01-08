@@ -209,3 +209,236 @@ En cas d’erreur ou de régression, le rollback permet de revenir rapidement à
 - Historique des révisions
 
 ---
+## 1️⃣3️⃣ **Création de fichiers YAML pour les Deployments et Services**
+
+**Fichier créé : `kubernetes.yml`**
+
+Remplacement des commandes kubectl par des fichiers YAML déclaratifs :
+
+```yaml
+---
+# Déploiement du RentalService (Frontend)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rental-service-deployment
+  labels:
+    app: rental-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rental-service
+  template:
+    metadata:
+      labels:
+        app: rental-service
+    spec:
+      containers:
+        - name: rental-service-container
+          image: rental-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+      restartPolicy: Always
+---
+# Service pour RentalService (NodePort)
+apiVersion: v1
+kind: Service
+metadata:
+  name: rental-service
+spec:
+  type: NodePort
+  selector:
+    app: rental-service
+  ports:
+    - port: 8080
+      targetPort: 8080
+      nodePort: 30080
+---
+# Déploiement du SurnameService (Backend)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: surname-service-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: surname-service
+  template:
+    metadata:
+      labels:
+        app: surname-service
+    spec:
+      containers:
+        - name: surname-service-container
+          image: surname-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 80
+---
+# Service pour SurnameService (ClusterIP)
+apiVersion: v1
+kind: Service
+metadata:
+  name: surname-service
+spec:
+  type: ClusterIP
+  selector:
+    app: surname-service
+  ports:
+    - port: 80
+      targetPort: 80
+```
+
+**Objectif**
+Utiliser l'Infrastructure as Code (IaC) pour déclarer les ressources Kubernetes.
+
+**Commande**
+```bash
+kubectl apply -f kubernetes.yml
+```
+
+---
+
+## 1️⃣4️⃣ **Communication entre microservices**
+
+**Fichier modifié : `application.properties`**
+
+```properties
+server.port=8080
+spring.application.name=RentalService
+
+# Docker Compose configuration
+# surname.service.url=http://surname-service
+
+# Kubernetes configuration
+surname.service.url=http://surname-service.default.svc.cluster.local:80
+```
+
+**Objectif**
+Configurer les URL selon l'environnement (Docker Compose vs Kubernetes).
+
+**Points clés**
+- RentalService (frontend) accède à SurnameService (backend) via DNS Kubernetes
+- Format : `<service-name>.<namespace>.svc.cluster.local`
+- Le Service agit comme load balancer interne
+
+---
+
+## 1️⃣5️⃣ **Gateway - Ingress (Routage NGINX)**
+
+**Activation du contrôleur NGINX**
+```bash
+minikube addons enable ingress
+```
+
+**Fichier créé : `ingress.yml`**
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: rental-ingress
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: rental-service.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: rental-service
+                port:
+                  number: 8080
+    - host: surname-service.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: surname-service
+                port:
+                  number: 80
+```
+
+**Objectif**
+Créer un point d'entrée unique (porte d'entrée) pour tous les microservices.
+
+**Avantages de l'Ingress**
+- ✅ Point d'entrée unique
+- ✅ Routage intelligent par hostname/chemin
+- ✅ Économie de ressources (moins de LoadBalancer)
+- ✅ Gestion centralisée SSL/TLS
+
+**Configuration du fichier hosts (Windows)**
+```
+127.0.0.1 rental-service.local
+127.0.0.1 surname-service.local
+```
+
+**Activation du tunnel Minikube**
+```bash
+minikube tunnel
+```
+
+**Commande d'application**
+```bash
+kubectl apply -f ingress.yml
+kubectl get ingress
+```
+
+**Accès**
+- http://rental-service.local/ → RentalService
+- http://surname-service.local/ → SurnameService
+
+---
+
+## 📝 **Résumé des changements**
+
+| Fichier | Changement | Raison |
+|---------|-----------|--------|
+| `kubernetes.yml` | **Créé** | Déploiements et Services |
+| `application.properties` | **Modifié** | URL Kubernetes pour inter-services |
+| `ingress.yml` | **Créé** | Routage NGINX |
+| `Dockerfile` (SurnameService) | **Corrigé** | Problème d'encodage |
+
+---
+
+## 🎯 **Architecture finale**
+
+```
+Internet
+    ↓
+Ingress NGINX (porte d'entrée unique - 192.168.49.2)
+    ├─ rental-service.local → RentalService (NodePort:30080)
+    │                           ↓ Pod:8080
+    │
+    └─ surname-service.local → SurnameService (ClusterIP:80)
+                                 ↓ Pod:80
+```
+
+**Communication inter-services**
+- RentalService → SurnameService : `http://surname-service.default.svc.cluster.local:80`
+
+---
+
+## ✅ **Vérification finale**
+
+```bash
+kubectl get deployments
+kubectl get services
+kubectl get ingress
+kubectl get pods
+```
+
+**Ressources déployées**
+- ✅ 2 Deployments
+- ✅ 2 Services (1 NodePort + 1 ClusterIP)
+- ✅ 1 Ingress avec 2 routes
+- ✅ Communication inter-pods via DNS Kubernetes
+"@; Set-Content "TP3.md" $newContent
