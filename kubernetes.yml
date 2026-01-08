@@ -1,0 +1,85 @@
+---
+# Déploiement du RentalService (Frontend)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rental-service-deployment
+  labels:
+    app: rental-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rental-service
+  template:
+    metadata:
+      labels:
+        app: rental-service
+    spec:
+      containers:
+        - name: rental-service-container
+          image: rental-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+      restartPolicy: Always
+---
+# Service pour RentalService (NodePort pour accès externe)
+apiVersion: v1
+kind: Service
+metadata:
+  name: rental-service
+  labels:
+    app: rental-service
+spec:
+  type: NodePort
+  selector:
+    app: rental-service
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8080
+      targetPort: 8080
+      nodePort: 30080
+---
+# Déploiement du SurnameService (Backend)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: surname-service-deployment
+  labels:
+    app: surname-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: surname-service
+  template:
+    metadata:
+      labels:
+        app: surname-service
+    spec:
+      containers:
+        - name: surname-service-container
+          image: surname-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+      restartPolicy: Always
+---
+# Service pour SurnameService (ClusterIP - communication interne)
+apiVersion: v1
+kind: Service
+metadata:
+  name: surname-service
+  labels:
+    app: surname-service
+spec:
+  type: ClusterIP
+  selector:
+    app: surname-service
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 80

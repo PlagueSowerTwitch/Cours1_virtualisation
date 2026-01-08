@@ -1,0 +1,29 @@
+services:
+  rental-service:
+    build:
+      context: ./RentalService
+      dockerfile: Dockerfile
+    container_name: rental-service
+    ports:
+      - "8080:8080"
+    environment:
+      - SERVER_PORT=8080
+      - SURNAME_SERVICE_URL=http://surname-service
+    depends_on:
+      - surname-service
+    networks:
+      - services-network
+
+  surname-service:
+    build:
+      context: ./SurnameService
+      dockerfile: Dockerfile
+    container_name: surname-service
+    ports:
+      - "80:80"
+    networks:
+      - services-network
+
+networks:
+  services-network:
+    driver: bridge
